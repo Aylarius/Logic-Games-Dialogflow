@@ -13,7 +13,7 @@ const {
 
 const functions = require('firebase-functions');//
 const responses = require('./responses.js');
-const suggestions = [ "Alphabet", "Cube", "Carré", "Racine carrée", "Racine cubique"];
+const suggestions = [ "Alphabet", "Cube", "Carré", "Racine carrée", "Racine cubique", "Calcul Mental Niveau 1", "Calcul Mental Niveau 2"];
 
 let startingNewGame = false;
 let alreadyPlayedData = [];
@@ -27,6 +27,22 @@ const app = dialogflow({debug: true});
  * @return {object} The random element retrieved from the array.
  */
 const random = (a) => a[Math.floor(Math.random() * a.length)];
+
+const randomMentalMath = function(a, b) {
+  let newMath = false;
+  while (newMath) {
+    if (alreadyPlayedData.indexOf(a + ' x ' + b) != -1) {
+      a = random(remainingData);
+      b = random(remainingData);
+    } else {
+      newMath = true;
+    }
+  }
+  return {
+    firstValue: a,
+    secondValue: b
+  };
+}
 
 app.intent('ChooseGame', 'PlayGame');
 
@@ -66,8 +82,20 @@ app.intent('PlayAlphabet', (conv, {AvailableGames}) => {
   conv.followup('NewRoundEvent')
 });
 
+app.intent('PlayMentalMathLvl1', (conv, {AvailableGames}) => {
+  startingNewGame = true;
+  currentGame = AvailableGames;
+  conv.followup('NewRoundEvent')
+});
+
+app.intent('PlayMentalMathLvl2', (conv, {AvailableGames}) => {
+  startingNewGame = true;
+  currentGame = AvailableGames;
+  conv.followup('NewRoundEvent')
+});
+
 app.intent('NewRound', (conv) => {
-  var answer, currentRound, remainingData;
+  var answer, currentRound, remainingData, question2, values;
   conv.data.currentRound++;
   var gameData = startingNewGame ? responses.categories[currentGame].data : responses.categories[conv.data.game].data;
   remainingData = gameData.slice(0);
@@ -110,11 +138,18 @@ app.intent('NewRound', (conv) => {
         answer = question;
         question = Math.pow(question, 2);
         break;
+    case 'Mental Math 1':
+    case 'Mental Math 2':
+        question2 = random(remainingData);
+        values = randomMentalMath(question, question2);
+        question = values.firstValue + ' x ' + values.secondValue;
+        answer = values.firstValue * values.secondValue;
+        break;
   }
   if (currentGame == 'Square Root' || currentGame == 'Cube Root') {
-    alreadyPlayedData.push(answer)
+    alreadyPlayedData.push(answer);
   } else {
-    alreadyPlayedData.push(question)
+    alreadyPlayedData.push(question);
   }
 
   let numberOfQuestions = startingNewGame ? responses.categories[currentGame].numberOfQuestions : responses.categories[conv.data.game].numberOfQuestions;

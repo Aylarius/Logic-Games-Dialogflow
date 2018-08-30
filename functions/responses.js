@@ -45,6 +45,18 @@ exports.categories = {
           "numberOfQuestions": 10,
           "data": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
       },
+  "Mental Math 1": {
+          "title": "Calcul Mental - Niveau 1",
+          "intro": "Le but de ce jeu est de trouver le résultat d'une multiplication. Premier calcul : ",
+          "numberOfQuestions": 15,
+          "data": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      },
+  "Mental Math 2": {
+          "title": "Calcul Mental - Niveau 2",
+          "intro": "Le but de ce jeu est de trouver le résultat d'une multiplication. Premier calcul : ",
+          "numberOfQuestions": 15,
+          "data": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+      },
   "Alphabet": {
           "title": "Alphabet",
           "intro": "Le but de ce jeu est de trouver la position d'une lettre dans l'alphabet. Première lettre : ",
