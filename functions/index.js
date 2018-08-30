@@ -12,13 +12,9 @@ const {
 } = require('actions-on-google');
 
 const functions = require('firebase-functions');//
-const alphabet = require('./alphabet.json');
 const responses = require('./responses.js');
-const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const numbersLong = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-const ALPHABET_LENGTH = 26;
-const CUBE_LENGTH = 10;
-const SQUARE_LENGTH = 20;
+const suggestions = [ "Alphabet", "Cube", "Carré", "Racine carrée", "Racine cubique"];
+
 let startingNewGame = false;
 let alreadyPlayedData = [];
 let currentGame = "";
@@ -35,6 +31,9 @@ const random = (a) => a[Math.floor(Math.random() * a.length)];
 app.intent('ChooseGame', 'PlayGame');
 
 app.intent('PlayGame', (conv, {AvailableGames}) => {
+  startingNewGame = true;
+  currentGame = AvailableGames;
+  conv.followup('NewRoundEvent')
 });
 
 app.intent('PlayCube', (conv, {AvailableGames}) => {
@@ -68,40 +67,30 @@ app.intent('PlayAlphabet', (conv, {AvailableGames}) => {
 });
 
 app.intent('NewRound', (conv) => {
-  var gameData, answer, currentRound;
+  var answer, currentRound, remainingData;
   conv.data.currentRound++;
+  var gameData = startingNewGame ? responses.categories[currentGame].data : responses.categories[conv.data.game].data;
+  remainingData = gameData.slice(0);
 
-  switch(currentGame) {
-    case 'Alphabet':
-        gameData = alphabet.data;
-        break;
-    case 'Cube':
-    case 'Cube Root':
-        gameData = numbers;
-        break;
-    case 'Square':
-    case 'Square Root':
-        gameData = numbersLong;
-        break;
-  }
-
-  if (currentGame == 'Alphabet' && Object.keys(gameData).length === 0) {
-    return conv.close(responses.general.missingData);
-  }
   if (startingNewGame) {
     alreadyPlayedData = [];
     currentRound = 1;
+    if (currentGame == 'Alphabet' && Object.keys(gameData).length === 0) {
+      return conv.close(responses.general.missingData);
+    }
   } else {
+    currentGame = conv.data.game;
     currentRound = conv.data.currentRound;
   }
-  let remainingData = gameData;
-  var i = gameData.length;
+
+  var i = startingNewGame ? responses.categories[currentGame].numberOfQuestions : responses.categories[conv.data.game].numberOfQuestions;
   while (i--) {
     let gameCompare = currentGame == 'Alphabet' ? gameData[i].letter : gameData[i];
-    if(alreadyPlayedData.indexOf(gameCompare)!=-1){
+    if(alreadyPlayedData.indexOf(gameData[i]) != -1){
         remainingData.splice(i,1);
     }
   }
+
   var question = random(remainingData);
   switch(currentGame) {
     case 'Alphabet':
@@ -122,6 +111,16 @@ app.intent('NewRound', (conv) => {
         question = Math.pow(question, 2);
         break;
   }
+  if (currentGame == 'Square Root' || currentGame == 'Cube Root') {
+    alreadyPlayedData.push(answer)
+  } else {
+    alreadyPlayedData.push(question)
+  }
+
+  let numberOfQuestions = startingNewGame ? responses.categories[currentGame].numberOfQuestions : responses.categories[conv.data.game].numberOfQuestions;
+  if (currentGame == 'Alphabet') {
+    numberOfQuestions = responses.categories[currentGame].roundLength;
+  }
 
   conv.data = {
     game: currentGame,
@@ -129,34 +128,30 @@ app.intent('NewRound', (conv) => {
     alreadyPlayedData: alreadyPlayedData,
     remainingData: remainingData,
     question: currentGame == 'Alphabet' ? question.letter : question,
-    answer: answer
+    answer: answer,
+    startingNewGame: startingNewGame,
+    roundOver: currentRound >= numberOfQuestions ? true : false
   };
-  let say = startingNewGame ? responses.general.newGame : '';
-  conv.ask(say + conv.data.question);
+  let say = startingNewGame ? responses.general.newGame + ' ' + responses.categories[currentGame].intro : '';
+  conv.ask(say + conv.data.question + ' ?');
   startingNewGame = false;
 });
 
 app.intent('GuessAnswer', (conv, {answer}) => {
-  let correctAnswer = conv.data.answer;
-  let length = currentGame == 'Alphabet' ? ALPHABET_LENGTH : currentGame == 'Cube' ? CUBE_LENGTH : SQUARE_LENGTH;
-
-  if (correctAnswer == answer) {
-    alreadyPlayedData.push(conv.data.question);
-    conv.data.alreadyPlayedData = alreadyPlayedData;
-
-    if (conv.data.currentRound >= length) {
+  if (conv.data.answer == answer) {
+    if (conv.data.roundOver) {
+      startingNewGame = true;
       conv.ask(new Confirmation(responses.general.startAgain));
     } else {
       conv.followup('NewRoundEvent')
     }
   } else {
-    conv.ask(responses.general.again + conv.data.question);
+    conv.ask(responses.general.again + conv.data.question + ' ?');
   }
 });
 
 app.intent('actions_intent_CONFIRMATION', (conv, input, confirmation) => {
   if (confirmation) {
-    startingNewGame = true;
     conv.followup('NewRoundEvent')
   } else {
     conv.close(new SimpleResponse({
@@ -178,7 +173,6 @@ app.intent('DefaultWelcomeIntent', (conv) => {
   //   context: responses.general.askForPermission,
   //   permissions: 'NAME'
   // }));
-  let suggestions = Object.keys(responses.categories);
   conv.ask(responses.general.permissionGranted, new Suggestions(suggestions));
 });
 
@@ -186,7 +180,6 @@ app.intent('DefaultWelcomeIntent', (conv) => {
 // agreed to PERMISSION prompt, then boolean value 'permissionGranted' is true.
 // app.intent('actions_intent_PERMISSION', (conv, params, permissionGranted) => {
 //   let response;
-//   let suggestions = Object.keys(responses.categories);
 //   if (!permissionGranted) {
 //     response = responses.general.permissionNotGranted;
 //   } else {
@@ -202,9 +195,12 @@ app.intent('DefaultWelcomeIntent', (conv) => {
  * @return {void}
  */
 app.intent('UnrecognizedDeepLink', (conv) => {
-  const response = util.format(responses.general.unhandled, conv.query);
-  const suggestions = Object.keys(responses.categories);
-  conv.ask(response, new Suggestions(suggestions));
+  conv.ask(responses.general.unhandled, new Suggestions(suggestions));
+});
+
+app.intent('HelpIntent', (conv) => {
+  var x = Math.floor((Math.random() * 2));
+  conv.ask(responses.general.help[x]);
 });
 
 app.intent('QuitApp', (conv) => {
